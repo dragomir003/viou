@@ -5,7 +5,7 @@ use std::{collections::VecDeque, sync::Arc};
 
 use opencv::{
     core::{self as cv, Ptr},
-    tracking::{TrackerKCF, TrackerKCFTrait, TrackerKCFTraitConst, TrackerKCF_Params},
+    tracking::{TrackerKCF, TrackerKCF_Params},
     video::TrackerTrait,
 };
 
@@ -56,13 +56,13 @@ impl From<cv::Rect> for Rect {
     }
 }
 
-impl Into<cv::Rect> for Rect {
-    fn into(self) -> cv::Rect {
+impl From<Rect> for cv::Rect {
+    fn from(val: Rect) -> Self {
         cv::Rect::from((
-            self.xmin as i32,
-            self.ymin as i32,
-            self.width as i32,
-            self.height as i32,
+            val.xmin as i32,
+            val.ymin as i32,
+            val.width as i32,
+            val.height as i32,
         ))
     }
 }
