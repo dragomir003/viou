@@ -203,8 +203,8 @@ impl Track {
         }
     }
 
-    fn finish(&self) -> Track {
-        todo!()
+    fn finish(self) -> Track {
+        self
     }
 }
 
