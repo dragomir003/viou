@@ -82,9 +82,12 @@ impl From<Rect> for cv::Rect {
 /// This would have been a trait if `impl` could be used in return type.
 #[derive(Debug, Default, PartialEq, PartialOrd, Copy, Clone)]
 pub struct Detection {
-    bbox: Rect,
-    confidence: f32,
-    class: usize,
+    ///
+    pub bbox: Rect,
+    ///
+    pub confidence: f32,
+    ///
+    pub class: usize,
 }
 
 impl Detection {
