@@ -27,10 +27,14 @@ pub type Result<T> = ::core::result::Result<T, Error>;
 ///
 #[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, Clone)]
 pub struct Rect {
-    xmin: isize,
-    ymin: isize,
-    width: isize,
-    height: isize,
+    ///
+    pub xmin: isize,
+    ///
+    pub ymin: isize,
+    ///
+    pub width: isize,
+    ///
+    pub height: isize,
 }
 
 impl Rect {
@@ -42,6 +46,16 @@ impl Rect {
             width,
             height,
         }
+    }
+
+    ///
+    pub fn get_center(&self) -> (isize, isize) {
+        (self.xmin + self.width / 2, self.ymin + self.height / 2)
+    }
+
+    ///
+    pub fn get_bottom_center(&self) -> (isize, isize) {
+        (self.xmin + self.width / 2, self.ymin + self.height)
     }
 }
 
@@ -91,33 +105,52 @@ impl Detection {
 /// Simple struct representing an object that is tracked.
 #[derive(Debug, Default)]
 pub struct Track {
-    bboxes: Vec<(Rect, bool)>,
-    score: f32,
-    class: usize,
+    ///
+    pub id: u128,
+    ///
+    pub bboxes: Vec<Rect>,
+    ///
+    pub score: f32,
+    ///
+    pub class: usize,
     visual_tracker: Option<Ptr<TrackerKCF>>,
     ttl: usize,
     det_counter: usize,
     start_frame: usize,
 }
 
+///
+#[derive(Debug, Default, Copy, Clone, PartialEq, PartialOrd)]
+pub struct ActiveTrack {
+    ///
+    pub bbox: Rect,
+    ///
+    pub score: f32,
+    ///
+    pub class: usize,
+    ///
+    pub id: u128,
+}
+
+impl From<&Track> for ActiveTrack {
+    fn from(value: &Track) -> Self {
+        Self {
+            bbox: *value.bboxes.last().expect("Tried to create ActiveTrack from empty Track"),
+            score: value.score,
+            class: value.class,
+            id: value.id,
+        }
+    }
+}
+
 impl Track {
     fn get_iou(&self, det: &Detection) -> f32 {
-        let t: cv::Rect = self
-            .bboxes
-            .last()
-            .map(|(r, _)| *r)
-            .unwrap_or_default()
-            .into();
-        let d: cv::Rect = det.bbox.into();
-
-        let i = (t | d).area() as f32;
-        let u = t.area() as f32 + d.area() as f32 - i;
-
-        i / u
+        self.bboxes.last()
+            .map_or(0.0, |b| find_iou(*b, det.bbox))
     }
 
     fn update(mut self, det: Detection) -> Self {
-        self.bboxes.push((det.bbox, true));
+        self.bboxes.push(det.bbox);
         if det.confidence > self.score {
             self.score = det.confidence;
             self.class = det.class;
@@ -135,7 +168,7 @@ impl Track {
             frame,
             self.bboxes
                 .last()
-                .map(|(r, _)| *r)
+                .map(|r| *r)
                 .ok_or(Error::LogicError)?
                 .into(),
         )?;
@@ -148,7 +181,7 @@ impl Track {
         self.ttl += 1;
         let mut roi = Default::default();
         if tracker.update(frame, &mut roi)? {
-            self.bboxes.push((roi.into(), false));
+            self.bboxes.push(roi.into());
             return Ok(true);
         }
 
@@ -156,16 +189,21 @@ impl Track {
     }
 
     ///
-    pub fn new(detection: Detection, frame: usize) -> Self {
+    pub fn new(id: impl Into<u128>, detection: Detection, frame: usize) -> Self {
         Self {
-            bboxes: vec![(detection.bbox, true)],
+            bboxes: vec![detection.bbox],
             score: detection.confidence,
             class: detection.class,
             visual_tracker: None,
             det_counter: 1,
             ttl: 0,
             start_frame: frame,
+            id: id.into(),
         }
+    }
+
+    fn finish(&self) -> Track {
+        todo!()
     }
 }
 
@@ -182,6 +220,7 @@ pub struct Tracker {
     sigma_iou: f32,
     t_min: usize,
     frame: usize,
+    last_id: u128,
 }
 
 impl Tracker {
@@ -198,7 +237,16 @@ impl Tracker {
     }
 
     ///
-    pub fn run(&mut self, mut detections: Vec<Detection>, frame: Arc<cv::Mat>) -> Result<()> {
+    pub fn finish(mut self) -> Vec<Track> {
+        self.active.append(&mut self.finished);
+        self.extendable.retain(|t| t.score >= self.sigma_h && t.det_counter >= self.t_min);
+        self.active.append(&mut self.extendable);
+
+        self.active
+    }
+
+    ///
+    pub fn run(&mut self, mut detections: Vec<Detection>, frame: Arc<cv::Mat>) -> Result<Vec<ActiveTrack>> {
         self.frame += 1;
 
         detections.retain(|d| d.confidence > self.sigma_l);
@@ -238,12 +286,11 @@ impl Tracker {
             }
         }
 
-        for mut track in std::mem::take(&mut self.extendable).into_iter() {
-            if track.start_frame + track.bboxes.len() + track.ttl >= self.frame {
+        for track in std::mem::take(&mut self.extendable).into_iter() {
+            if track.start_frame + track.bboxes.len() + self.ttl >= self.frame {
                 self.extendable.push(track);
             } else if track.score >= self.sigma_h && track.det_counter >= self.t_min {
-                track.visual_tracker = None;
-                self.finished.push(track);
+                self.finished.push(track.finish());
             }
         }
 
@@ -259,7 +306,7 @@ impl Tracker {
 
             let mut found_track = None::<usize>;
 
-            'outer: for frame in self.frames.iter().rev().skip(1) {
+            'outer: for (frame_idx, frame) in self.frames.iter().rev().enumerate().skip(1) {
                 let mut bbox = Default::default();
                 if !tracker.update(frame.as_ref(), &mut bbox)? {
                     break;
@@ -268,30 +315,20 @@ impl Tracker {
                 bboxes.push(bbox.into());
 
                 for (i, track) in self.extendable.iter_mut().enumerate() {
-                    let offset = track.start_frame + track.bboxes.len() + bboxes.len() - self.frame;
+                    let tbox = if track.start_frame + track.bboxes.len() < self.frame - frame_idx {
+                        continue;
+                    } else {
+                        track.bboxes.iter().nth_back(frame_idx - 1).expect("This bbox must exist")
+                    };
 
-                    if 1 <= offset
-                        && offset <= track.ttl
-                        && track
-                            .bboxes
-                            .iter()
-                            .nth_back(offset - 1)
-                            .is_some_and(|(r, _)| {
-                                let r: cv::Rect = (*r).into();
-                                let d = bbox;
-                                let i = (r & d).area();
-                                let u = r.area() + d.area() - i;
-                                (i as f32 / u as f32) >= self.sigma_iou
-                            })
-                    {
-                        track.bboxes.drain((track.bboxes.len() - offset)..);
-                        track
-                            .bboxes
-                            .append(&mut bboxes.iter().map(|r| (*r, false)).rev().collect());
+                    if find_iou(*tbox, bbox) >= self.sigma_iou {
+                        track.bboxes.drain((track.bboxes.len() - frame_idx)..);
+                        track.bboxes.append(&mut bboxes);
                         let t = std::mem::take(track);
                         *track = t.update(detection);
                         found_track = Some(i);
                         break 'outer;
+
                     }
                 }
             }
@@ -299,13 +336,17 @@ impl Tracker {
             updated.push(
                 found_track
                     .map(|idx| self.extendable.remove(idx))
-                    .unwrap_or(Track::new(detection, self.frame)),
+                    .unwrap_or_else(|| {
+                        self.last_id += 1;
+                        Track::new(self.last_id - 1, detection, self.frame)
+                    })
             );
         }
 
         self.active = updated;
 
-        Ok(())
+
+        Ok(self.active.iter().map(Into::<ActiveTrack>::into).collect())
     }
 }
 
@@ -350,4 +391,14 @@ fn associate(
         unmatched_detections: detections,
         unmatched_tracks,
     }
+}
+
+fn find_iou(a: impl Into<cv::Rect>, b: impl Into<cv::Rect>) -> f32 {
+    let a = a.into();
+    let b = b.into();
+
+    let i = (a & b).area() as f32;
+    let u = (a.area() + b.area()) as f32 - i;
+
+    i / u
 }
