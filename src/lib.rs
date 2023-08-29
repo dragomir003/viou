@@ -15,10 +15,6 @@ pub enum Error {
     ///
     #[error("Processing error occurred {0}")]
     OpenCv(#[from] opencv::Error),
-
-    ///
-    #[error("Internal logic error")]
-    LogicError,
 }
 
 ///
@@ -119,6 +115,8 @@ pub struct Track {
     start_frame: usize,
 }
 
+unsafe impl Send for Track {}
+
 ///
 #[derive(Debug, Default, Copy, Clone, PartialEq, PartialOrd)]
 pub struct ActiveTrack {
@@ -169,14 +167,14 @@ impl Track {
             self.bboxes
                 .last()
                 .map(|r| *r)
-                .ok_or(Error::LogicError)?
+                .expect("Tried to init visual tracker on empty track")
                 .into(),
         )?;
         Ok(())
     }
 
     fn visual_update(&mut self, frame: &cv::Mat) -> Result<bool> {
-        let tracker = self.visual_tracker.as_mut().ok_or(Error::LogicError)?;
+        let tracker = self.visual_tracker.as_mut().expect("Failed to init visual tracker");
 
         self.ttl += 1;
         let mut roi = Default::default();
@@ -222,6 +220,9 @@ pub struct Tracker {
     frame: usize,
     last_id: u128,
 }
+
+
+unsafe impl Send for Tracker {}
 
 impl Tracker {
     ///
@@ -274,10 +275,10 @@ impl Tracker {
             }
 
             if track.ttl == 0 {
-                track.init_visual(self.frames.iter().nth_back(1).ok_or(Error::LogicError)?)?;
+                track.init_visual(self.frames.iter().nth_back(1).expect("Tried to visualy track with no frames"))?;
             }
 
-            let frame = self.frames.back().ok_or(Error::LogicError)?;
+            let frame = self.frames.back().expect("There must be frames in tracker");
 
             if track.visual_update(frame)? {
                 updated.push(track);
@@ -300,7 +301,7 @@ impl Tracker {
             let mut bboxes = Vec::<Rect>::with_capacity(self.ttl);
             let mut tracker = TrackerKCF::create(TrackerKCF_Params::default()?)?;
             tracker.init(
-                self.frames.back().ok_or(Error::LogicError)?.as_ref(),
+                self.frames.back().expect("Ther must have been a frame by now").as_ref(),
                 detection.bbox.into(),
             )?;
 
