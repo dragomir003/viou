@@ -322,7 +322,10 @@ impl Tracker {
                     let tbox = if track.start_frame + track.bboxes.len() < self.frame - frame_idx {
                         continue;
                     } else {
-                        track.bboxes.iter().nth_back(frame_idx - 1).expect("This bbox must exist")
+                        let Some(bbox) = track.bboxes.iter().nth_back(frame_idx - 1) else {
+                            continue;
+                        };
+                        bbox
                     };
 
                     if find_iou(*tbox, bbox) >= self.sigma_iou {
