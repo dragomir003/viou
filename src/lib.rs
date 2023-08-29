@@ -120,30 +120,6 @@ pub struct Track {
 
 unsafe impl Send for Track {}
 
-///
-#[derive(Debug, Default, Copy, Clone, PartialEq, PartialOrd)]
-pub struct ActiveTrack {
-    ///
-    pub bbox: Rect,
-    ///
-    pub score: f32,
-    ///
-    pub class: usize,
-    ///
-    pub id: u128,
-}
-
-impl From<&Track> for ActiveTrack {
-    fn from(value: &Track) -> Self {
-        Self {
-            bbox: *value.bboxes.last().expect("Tried to create ActiveTrack from empty Track"),
-            score: value.score,
-            class: value.class,
-            id: value.id,
-        }
-    }
-}
-
 impl Track {
     fn get_iou(&self, det: &Detection) -> f32 {
         self.bboxes.last()
@@ -250,7 +226,7 @@ impl Tracker {
     }
 
     ///
-    pub fn run(&mut self, mut detections: Vec<Detection>, frame: Arc<cv::Mat>) -> Result<Vec<ActiveTrack>> {
+    pub fn run(&mut self, mut detections: Vec<Detection>, frame: Arc<cv::Mat>) -> Result<&[Track]> {
         self.frame += 1;
 
         detections.retain(|d| d.confidence > self.sigma_l);
@@ -353,7 +329,7 @@ impl Tracker {
         self.active = updated;
 
 
-        Ok(self.active.iter().map(Into::<ActiveTrack>::into).collect())
+        Ok(self.active.as_slice())
     }
 }
 
