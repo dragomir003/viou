@@ -182,7 +182,8 @@ impl Track {
         }
     }
 
-    fn finish(self) -> Track {
+    fn finish(mut self) -> Track {
+        self.visual_tracker = None;
         self
     }
 }
