@@ -4,7 +4,7 @@
 use std::{collections::VecDeque, sync::Arc};
 
 use opencv::{
-    core::{self as cv, Ptr},
+    core::{self as cv, Ptr, PtrExtern},
     tracking::{TrackerKCF, TrackerKCF_Params},
     video::TrackerTrait,
 };
@@ -134,7 +134,10 @@ impl Track {
         }
         self.det_counter += 1;
         self.ttl = 0;
-        self.visual_tracker = None;
+        if let Some(tracker) = self.visual_tracker.take() {
+            drop(tracker);
+
+        }
 
         self
     }
