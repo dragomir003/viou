@@ -115,7 +115,8 @@ pub struct Track {
     visual_tracker: Option<Ptr<TrackerKCF>>,
     ttl: usize,
     det_counter: usize,
-    start_frame: usize,
+    ///
+    pub start_frame: usize,
 }
 
 unsafe impl Send for Track {}
