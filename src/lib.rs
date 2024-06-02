@@ -4,7 +4,7 @@
 use std::{collections::VecDeque, sync::Arc};
 
 use opencv::{
-    core::{self as cv, Ptr, PtrExtern},
+    core::{self as cv, Ptr},
     tracking::{TrackerKCF, TrackerKCF_Params},
     video::TrackerTrait,
 };
@@ -149,7 +149,7 @@ impl Track {
             frame,
             self.bboxes
                 .last()
-                .map(|r| *r)
+                .copied()
                 .expect("Tried to init visual tracker on empty track")
                 .into(),
         )?;
