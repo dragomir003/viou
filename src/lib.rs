@@ -1,7 +1,7 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../Readme.md")]
 
-use std::{collections::VecDeque, sync::Arc};
+use std::collections::VecDeque;
 
 use opencv::{
     core::{self as cv, Ptr},
@@ -195,7 +195,7 @@ pub struct Tracker {
     active: Vec<Track>,
     extendable: Vec<Track>,
     finished: Vec<Track>,
-    frames: VecDeque<Arc<cv::Mat>>,
+    frames: VecDeque<cv::Mat>,
     ttl: usize,
     sigma_l: f32,
     sigma_h: f32,
@@ -231,7 +231,7 @@ impl Tracker {
     }
 
     ///
-    pub fn run(&mut self, mut detections: Vec<Detection>, frame: Arc<cv::Mat>) -> Result<&[Track]> {
+    pub fn run(&mut self, mut detections: Vec<Detection>, frame: cv::Mat) -> Result<&[Track]> {
         self.frame += 1;
 
         detections.retain(|d| d.confidence > self.sigma_l);
@@ -239,7 +239,7 @@ impl Tracker {
         if self.frames.len() > self.ttl {
             self.frames.pop_front();
         }
-        self.frames.push_back(Arc::clone(&frame));
+        self.frames.push_back(frame);
 
         let Association {
             matched,
@@ -285,7 +285,7 @@ impl Tracker {
             let mut bboxes = Vec::<Rect>::with_capacity(self.ttl);
             let mut tracker = TrackerKCF::create(TrackerKCF_Params::default()?)?;
             tracker.init(
-                self.frames.back().expect("Ther must have been a frame by now").as_ref(),
+                self.frames.back().expect("Ther must have been a frame by now"),
                 detection.bbox.into(),
             )?;
 
@@ -293,7 +293,7 @@ impl Tracker {
 
             'outer: for (frame_idx, frame) in self.frames.iter().rev().enumerate().skip(1) {
                 let mut bbox = Default::default();
-                if !tracker.update(frame.as_ref(), &mut bbox)? {
+                if !tracker.update(frame, &mut bbox)? {
                     break;
                 }
 
