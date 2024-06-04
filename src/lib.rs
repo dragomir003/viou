@@ -336,6 +336,11 @@ impl Tracker {
 
         Ok(self.active.as_slice())
     }
+
+    ///
+    pub fn get_extendable_tracks(&self) -> &[Track] {
+        &self.extendable
+    }
 }
 
 struct Association {
