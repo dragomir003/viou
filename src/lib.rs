@@ -231,7 +231,7 @@ impl Tracker {
     }
 
     ///
-    pub fn run(&mut self, mut detections: Vec<Detection>, frame: cv::Mat) -> Result<&[Track]> {
+    pub fn run(&mut self, mut detections: Vec<Detection>, frame: cv::Mat) -> Result<(&[Track], &[Track])> {
         self.frame += 1;
 
         detections.retain(|d| d.confidence > self.sigma_l);
@@ -334,7 +334,7 @@ impl Tracker {
         self.active = updated;
 
 
-        Ok(self.active.as_slice())
+        Ok((self.active.as_slice(), self.get_extendable_tracks()))
     }
 
     ///
