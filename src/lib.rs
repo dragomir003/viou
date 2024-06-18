@@ -156,6 +156,10 @@ impl Track {
         Ok(())
     }
 
+    fn is_lost_by_nn(&self) -> bool {
+        self.visual_tracker.is_some()
+    }
+
     fn visual_update(&mut self, frame: &cv::Mat) -> Result<bool> {
         let tracker = self.visual_tracker.as_mut().expect("Failed to init visual tracker");
 
