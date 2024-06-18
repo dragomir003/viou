@@ -5,7 +5,7 @@ use std::collections::VecDeque;
 
 use opencv::{
     core::{self as cv, Ptr},
-    tracking::{TrackerKCF, TrackerKCF_Params},
+    tracking::{TrackerKCF, TrackerKCF_Params, TrackerCSRT, TrackerCSRT_Params},
     video::TrackerTrait,
 };
 
@@ -112,7 +112,7 @@ pub struct Track {
     pub score: f32,
     ///
     pub class: usize,
-    visual_tracker: Option<Ptr<TrackerKCF>>,
+    visual_tracker: Option<Ptr<TrackerCSRT>>,
     ttl: usize,
     det_counter: usize,
     ///
@@ -144,7 +144,7 @@ impl Track {
     }
 
     fn init_visual(&mut self, frame: &cv::Mat) -> Result<()> {
-        self.visual_tracker = Some(TrackerKCF::create(TrackerKCF_Params::default()?)?);
+        self.visual_tracker = Some(TrackerCSRT::create(&TrackerCSRT_Params::default()?)?);
         self.visual_tracker.as_mut().unwrap().init(
             frame,
             self.bboxes
@@ -272,7 +272,7 @@ impl Tracker {
         }
 
         for track in std::mem::take(&mut self.extendable).into_iter() {
-            if track.start_frame + track.bboxes.len() + self.ttl >= self.frame {
+            if track.start_frame + track.bboxes.len() - track.ttl + self.ttl >= self.frame {
                 self.extendable.push(track);
             } else if track.score >= self.sigma_h && track.det_counter >= self.t_min {
                 self.finished.push(track.finish());
@@ -283,7 +283,7 @@ impl Tracker {
 
         for detection in unmatched_detections.into_iter() {
             let mut bboxes = Vec::<Rect>::with_capacity(self.ttl);
-            let mut tracker = TrackerKCF::create(TrackerKCF_Params::default()?)?;
+            let mut tracker = TrackerCSRT::create(TrackerCSRT_Params::default()?)?;
             tracker.init(
                 self.frames.back().expect("Ther must have been a frame by now"),
                 detection.bbox.into(),
