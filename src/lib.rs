@@ -283,7 +283,7 @@ impl Tracker {
 
         for detection in unmatched_detections.into_iter() {
             let mut bboxes = Vec::<Rect>::with_capacity(self.ttl);
-            let mut tracker = TrackerCSRT::create(TrackerCSRT_Params::default()?)?;
+            let mut tracker = TrackerCSRT::create(&TrackerCSRT_Params::default()?)?;
             tracker.init(
                 self.frames.back().expect("Ther must have been a frame by now"),
                 detection.bbox.into(),
